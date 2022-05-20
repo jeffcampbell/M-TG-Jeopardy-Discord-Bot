@@ -16,9 +16,13 @@ if not db["players"]:
   db["players"] = {}
 
 class Jeopardy:
-    def get_question(guild, message, channel):
-        result = "Could not find question. Perhaps something is wrong?"
-    
+    async def get_question(guild, message, channel):
+
+        if db["active_question"]:
+          embed=discord.Embed(title="{}          {}".format(db["question"]["type_line"],color_identity), description=db["question"]["oracle_text"])
+          embed.set_footer(text=db["question"]["set_name"])
+          await channel.send(content="For {} points:".format(db["question"]["edhrec_rank"]), embed=embed)
+
         if not db["active_question"]:   
           scryfall_api = "https://api.scryfall.com/cards/random?" + db["query"]
           card = requests.get(scryfall_api).json()
@@ -47,16 +51,12 @@ class Jeopardy:
               if (search(mana,str(emoji))):
                 color_identity = color_identity + "<:{}:{}> ".format(emoji.name,emoji.id)
 
-          embed=discord.Embed(title="{}          {}".format(db["question"]["edhrec_rank"],color_identity), description=db["question"]["oracle_text"])
-          embed.set_author(name="For {} points:".format(db["question"]["edhrec_rank"]))
-          await channel.send(embed=embed)
-          result = "For {} points:\n> Set Name: {}\n> Colors: {}\n> Type Line: {}\n```{}```".format(db["question"]["edhrec_rank"],db["question"]["set_name"],color_identity,db["question"]["type_line"],db["question"]["oracle_text"])
-          client.loop.create_task(Timers.question_timer(guild.id,channel,db["question"]["id"]))
-          client.loop.create_task(Timers.hint_timer(guild.id,channel,db["question"]["id"]))
+          embed=discord.Embed(title="{}          {}".format(db["question"]["type_line"],color_identity), description=db["question"]["oracle_text"])
+          embed.set_footer(text=db["question"]["set_name"])
+          await channel.send(content="For {} points:".format(db["question"]["edhrec_rank"]), embed=embed)
 
-        if db["active_question"]:
-            result = "For {} points:\n> Set Name: {}\n> Colors: {}\n> Type Line: {}\n```{}```".format(db["question"]["edhrec_rank"],db["question"]["set_name"],color_identity,db["question"]["type_line"],db["question"]["oracle_text"])
-        return result
+          client.loop.create_task(Timers.question_timer(guild.id,channel,db["question"]["id"]))
+          client.loop.create_task(Timers.hint_timers(guild.id,channel,db["question"]["id"]))
 
     async def check_answer(guild, message, channel, user):
         if not db["active_question"]:
@@ -76,7 +76,7 @@ class Jeopardy:
             if user.display_name in db["players"] and db["question"]["id"] == db["players"][user.display_name]["last_question"]:
                 answer = "You have already tried to answer this question, {}!".format(user.display_name)
     
-            elif check_full > 60 or check_name > 70:
+            elif check_full > 60 or check_name > 50:
                 db["players"][user.display_name]["score"] = Bot.update_score(guild, user, score, db["question"]["id"])
                 answer = "That is correct, {}! Your score is now {}.".format(user.display_name,db["players"][user.display_name]["score"])
                 embed=discord.Embed()
@@ -156,7 +156,7 @@ class Timers:
             embed.add_field(name=db["question"]["name"], value="${}".format(db["question"]["prices"]["usd"]), inline=True)
             await channel.send(content="Time is up! The answer is...", embed=embed)
 
-    async def hint_timer(guild, channel, question_id):
+    async def hint_timers(guild, channel, question_id):
     
         print("Starting hint timer...")
         await asyncio.sleep(15)
@@ -183,9 +183,7 @@ async def on_message(message):
         return
 
     if message.content.startswith('!jmtg'):
-        result = Jeopardy.get_question(message.guild,message.id,channel)
-
-        await channel.send(result)
+        await Jeopardy.get_question(message.guild,message.id,channel)
 
     if message.content.startswith('!jldr'):
         result = Bot.get_leaderboard(message.guild.id,channel)
@@ -203,13 +201,6 @@ async def on_message(message):
         result = Bot.admin_tools(message.guild.id,message.author,channel,action,message.content)
 
         await channel.send(result)
-
-    if message.content.startswith('!emoji'):
-        print("checking emoji")
-        for emoji in message.guild.emojis:
-            
-            print(emoji.name, emoji.id)
-        await channel.send("<:{}:{}>".format(emoji.name,emoji.id))
 
     if question_format:
         print("found an answer!")
