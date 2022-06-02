@@ -6,11 +6,10 @@ import logging
 import requests
 from re import search
 from replit import db
-from unidecode import unidecode
 from fuzzywuzzy import fuzz
 
 ### SETUP ###
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(filename='console.log', level=logging.INFO)
 client = discord.Client()
 discord_token = os.environ['discord_bot_token']
 db["active_question"] = None
@@ -36,7 +35,7 @@ class Jeopardy:
             card = requests.get(scryfall_api).json()
             attempt = 0
             while "edhrec_rank" not in card:
-                print(
+                logging.info(
                     "No edhrec rank or double sided card: {}. Trying again...".
                     format(card["name"]))
                 card = requests.get(scryfall_api).json()
@@ -45,10 +44,11 @@ class Jeopardy:
                     result = "Couldn't find a card. Try changing Scryfall search"
                     return result
             # For debugging purposes.
-            #print(card["name"])
+            #logging.info(card["name"])
             db["question"] = card
             db["question"]["guild"] = guild.id
             db["question"]["message"] = message
+            db["question"]["color_identity_emoji"] = ""
             db["active_question"] = True
 
             if db["question"]["name"] or db["question"]["name"].split(
@@ -59,11 +59,11 @@ class Jeopardy:
                         "oracle_text"].replace(r, "...")
 
             for mana in db["question"]["color_identity"]:
-                db["question"]["color_identity_emoji"] = ""
+                logging.info(mana)
                 for emoji in guild.emojis:
                     if (search(mana, str(emoji))):
-                        db["question"]["color_identity_emoji"] = db["question"]["color_identity_emoji"] + "<:{}:{}> ".format(
-                            emoji.name, emoji.id)
+                        db["question"]["color_identity_emoji"] = db["question"]["color_identity_emoji"] + "<:{}:{}> ".format(emoji.name, emoji.id)
+                        logging.info("Final color identity: {}".format(db["question"]["color_identity_emoji"]))
 
             embed = discord.Embed(title="{}          {}".format(
                 db["question"]["type_line"], db["question"]["color_identity_emoji"]),
@@ -80,10 +80,10 @@ class Jeopardy:
 
     async def check_answer(guild, message, channel, user):
         if not db["active_question"]:
-            print("No active question")
+            logging.info("No active question")
             answer = False
         else:
-            print("Found active question")
+            logging.info("Found active question")
 
             message = re.sub(
                 r"^(what|whats|where|wheres|who|whos)(\s)(is|are)",
@@ -154,10 +154,10 @@ class Bot:
         return leaderboard
 
     def update_score(guild, user, score, question):
-        print("Checking for user...")
+        logging.info("Checking for user...")
 
         if not user.display_name in db["players"]:
-            print("No user found, adding...")
+            logging.info("No user found, adding...")
             player = {
                 'name': user.display_name,
                 'guild': guild,
@@ -166,7 +166,7 @@ class Bot:
             }
             db["players"][user.display_name] = player
         else:
-            print("User found, updating score...")
+            logging.info("User found, updating score...")
             db["players"][user.display_name]["score"] = score + db["players"][
                 user.display_name]["score"]
             db["players"][
@@ -178,15 +178,15 @@ class Bot:
 class Timers:
     async def question_timer(guild, channel, question_id):
 
-        print("Starting question timer...")
+        logging.info("Starting question timer...")
         await asyncio.sleep(30)
-        print("Time is up for question")
+        logging.info("Time is up for question")
 
         if not db["active_question"] or question_id != db["question"]["id"]:
-            print("Question was answered: {}".format(
+            logging.info("Question was answered: {}".format(
                 db["question"]["name"]))
         else:
-            print("sending answer")
+            logging.info("sending answer")
             db["active_question"] = False
             embed = discord.Embed()
             embed.set_image(url=db["question"]["image_uris"]["large"])
@@ -199,14 +199,14 @@ class Timers:
 
     async def hint_timers(guild, channel, question_id):
 
-        print("Starting hint timer...")
+        logging.info("Starting hint timer...")
         await asyncio.sleep(15)
 
         if not db["active_question"] or question_id != db["question"]["id"]:
-            print("Question was answered: {} {}".format(
+            logging.info("Question was answered: {} {}".format(
                 question_id, db["question"]["id"]))
         else:
-            print("sending hint")
+            logging.info("sending hint")
             await channel.send(
                 "*Here's a hint. The name starts with {}*".format(
                     str(db["question"]["name"])[0]))
@@ -214,7 +214,7 @@ class Timers:
 
 @client.event
 async def on_ready():
-    print('We have logged in as {0.user}'.format(client))
+    logging.info('We have logged in as {0.user}'.format(client))
 
 
 @client.event
